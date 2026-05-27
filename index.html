@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>우리반 쓰레기 경매 - 학생 패널</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans min-h-screen p-4 md:p-6">
+
+    <div class="max-w-4xl mx-auto space-y-6">
+        <!-- 상단 모둠 정보 및 상태창 -->
+        <header class="bg-slate-800 rounded-2xl p-5 shadow-xl border border-slate-700 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <span class="text-3xl">📱</span>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <select id="myGroupSelect" class="bg-slate-700 text-amber-400 font-black text-xl px-3 py-1.5 rounded-xl border border-slate-600 focus:outline-none">
+                            <option value="">-- 우리 모둠 선택 --</option>
+                            <option value="1모둠">1모둠 패널</option>
+                            <option value="2모둠">2모둠 패널</option>
+                            <option value="3모둠">3모둠 패널</option>
+                            <option value="4모둠">4모둠 패널</option>
+                            <option value="5모둠">5모둠 패널</option>
+                            <option value="6모둠">6모둠 패널</option>
+                        </select>
+                        <button id="lockGroupBtn" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-3 py-1.5 rounded-xl text-xs transition">선택 확정(잠금)</button>
+                    </div>
+                    <p class="text-[11px] text-rose-400 font-bold mt-1" id="lockNotice">⚠️ 처음 모둠을 선택하고 확정하면 변경할 수 없습니다.</p>
+                </div>
+            </div>
+            <!-- 실시간 내 에코머니 자산 전광판 -->
+            <div class="flex gap-4 bg-slate-900 px-5 py-2.5 rounded-xl border border-slate-700 w-full sm:w-auto justify-around">
+                <div class="text-center">
+                    <p class="text-[10px] font-bold text-slate-400">현재 자산</p>
+                    <p class="text-lg font-black text-emerald-400" id="myMoney">100만 원</p>
+                </div>
+                <div class="text-center border-l border-slate-700 pl-4">
+                    <p class="text-[10px] font-bold text-slate-400">총 만족도</p>
+                    <p class="text-lg font-black text-indigo-400" id="mySatisfaction">0점</p>
+                </div>
+                <div class="text-center border-l border-slate-700 pl-4 hidden" id="myTaxContainer">
+                    <p class="text-[10px] font-bold text-rose-400">남은 환경세</p>
+                    <p class="text-lg font-black text-rose-400" id="myTax">0만 원</p>
+                </div>
+            </div>
+        </header>
+
+        <!-- 모둠 미선택 시 표출 안내 가림막 -->
+        <div id="groupAlertBlock" class="bg-amber-500/10 border border-amber-500 rounded-2xl p-8 text-center text-amber-300 font-bold">
+            🔒 상단 메뉴에서 해당 모둠을 선택한 후 [선택 확정(잠금)] 버튼을 눌러야 활동 패널이 연동됩니다!
+        </div>
+
+        <!-- 메인 콘텐츠 활동 가구 -->
+        <div id="mainContentArea" class="hidden space-y-6">
+            <!-- 1단계 스크린 -->
+            <section id="step1Screen" class="bg-slate-800 rounded-2xl p-8 text-center border border-slate-700 space-y-4">
+                <div class="text-5xl animate-bounce">💰</div>
+                <h2 class="text-2xl font-black text-emerald-400">1단계: 에코머니 자산 지급 완료</h2>
+                <p class="text-slate-300 text-sm max-w-md mx-auto leading-relaxed">
+                    모든 모둠에게 초기 가상 자산 <span class="text-emerald-400 font-bold">100만 원</span>이 정상 지급되었습니다.<br>
+                    경매 도중 파산하지 않도록 선생님의 안내에 맞춰 멋진 소비 전략을 준비하세요!
+                </p>
+            </section>
+
+            <!-- 2단계 스크린 -->
+            <section id="step2Screen" class="hidden bg-slate-800 rounded-2xl p-6 text-center border border-slate-700 space-y-4">
+                <div class="text-5xl">🔨</div>
+                <h2 class="text-2xl font-black text-indigo-400">2단계: 본격 경매 비딩 진행 중!</h2>
+                <p class="text-slate-300 text-sm max-w-md mx-auto leading-relaxed">
+                    실시간으로 물품 가격이 변동됩니다! 과감하게 도전하세요.<br>
+                    <span class="text-amber-400 font-bold">⚠️ 주의: 현재 단계에서는 각 물품에 청구될 '환경세' 금액은 공개되지 않고 '만족도'만 표시됩니다.</span>
+                </p>
+                <div class="p-4 bg-slate-900 rounded-xl max-w-md mx-auto border border-slate-700 text-left">
+                    <p class="text-xs font-bold text-slate-400 text-center mb-2">우리 모둠이 낙찰받은 자산 내역</p>
+                    <div id="myItemsListView" class="text-sm font-medium text-slate-200 text-center">낙찰 내역이 비어있습니다.</div>
+                </div>
+            </section>
+
+            <!-- 3단계 스크린 -->
+            <section id="step3Screen" class="hidden space-y-6">
+                <div class="bg-gradient-to-r from-amber-600/20 to-rose-600/20 border-2 border-dashed border-amber-500/50 rounded-2xl p-5 text-center space-y-2">
+                    <h3 class="text-xl font-black text-amber-300">🚨 [비상 미션] 물품별 환경세 고지서 대공개!</h3>
+                    <p class="text-xs md:text-sm text-slate-300 leading-relaxed max-w-2xl mx-auto">
+                        그동안 낙찰받았던 물품들의 진짜 <span class="text-rose-400 font-bold">환경세 폭탄(감점 자산)</span>이 부과되었습니다! 아래 양식에서 물품을 선택한 후, <span class="text-emerald-400 font-bold">5R 환경 실천 방안</span>을 작성하여 제출하세요. 교사가 승인하면 세금이 감면되어 자산을 지킬 수 있습니다! 어떤 5R 방법이 감면 혜택이 제일 클지 직접 도전하며 알아내세요!
+                    </p>
+                </div>
+
+                <!-- 5R 실천 대안 폼 -->
+                <div class="bg-slate-800 rounded-2xl p-6 shadow-xl border border-slate-700 space-y-4">
+                    <h3 class="text-lg font-black text-emerald-400">📝 5R 환경세 감면 실천서</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-xs font-bold text-slate-400 block mb-1">방안을 작성할 물품</label>
+                            <select id="myPropItemSelect" class="w-full bg-slate-700 border border-slate-600 rounded-xl p-3 text-sm font-bold text-white"></select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-400 block mb-1">선택할 5R 종류</label>
+                            <select id="myPropRType" class="w-full bg-slate-700 border border-slate-600 rounded-xl p-3 text-sm font-bold text-amber-400">
+                                <option value="거절하기">거절하기 (Refuse)</option>
+                                <option value="줄이기">줄이기 (Reduce)</option>
+                                <option value="재사용하기">재사용하기 (Reuse)</option>
+                                <option value="재활용하기">재활용하기 (Recycle)</option>
+                                <option value="썩히기">썩히기 (Rot)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-400 block mb-1">구체적인 서술형 실천 방안 (방법과 효과를 자세히)</label>
+                        <textarea id="myPropIdea" rows="3" placeholder="예시) 포장 용기를 분리배출 하거나 다회용기에 담아오는 방식을 선택하겠습니다." class="w-full bg-slate-700 border border-slate-600 rounded-xl p-3 text-sm text-white placeholder:text-slate-500"></textarea>
+                    </div>
+                    <button id="submitProposalBtn" class="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black py-3 rounded-xl transition text-sm cursor-pointer">✍️ 실천 방안 제출하고 환경세 낮추기</button>
+                </div>
+
+                <!-- 제출 상태 판정 리스트 테이블 -->
+                <div class="bg-slate-800 rounded-2xl p-6 shadow-xl border border-slate-700 space-y-3">
+                    <h3 class="text-base font-bold text-slate-300">📊 우리 모둠 환경세 실시간 감면 현황</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs font-medium">
+                            <thead>
+                                <tr class="border-b border-slate-700 text-slate-400 font-bold">
+                                    <th class="pb-2">물품명</th>
+                                    <th class="pb-2">기존 부과 환경세</th>
+                                    <th class="pb-2">선택한 5R</th>
+                                    <th class="pb-2">제출 서술 내용</th>
+                                    <th class="pb-2 text-center">심사 상태 및 결과</th>
+                                </tr>
+                            </thead>
+                            <tbody id="myStatusTableBody" class="divide-y divide-slate-700"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 4단계 스크린 -->
+            <section id="step4Screen" class="hidden bg-slate-800 rounded-2xl p-8 text-center border-2 border-amber-500 space-y-4">
+                <div class="text-5xl">👑</div>
+                <h2 class="text-2xl font-black text-amber-400">4단계: 최종 결과 발표 및 피드백 공유</h2>
+                <p class="text-slate-300 text-sm max-w-md mx-auto leading-relaxed">
+                    모든 정산과 환경 등수 평가가 최종 마감되었습니다.<br>
+                    교사 스크린의 종합 전광판을 확인하고 1위 팀의 아이디어를 벤치마킹해 봅시다.
+                </p>
+            </section>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = { databaseURL: "https://hajin-aa841-default-rtdb.firebaseio.com/" };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        let myGroup = "";
+        let currentStep = "1";
+        let teamsData = {};
+        let proposalsData = {};
+
+        // 💡 [핵심 변경] 기기 저장 여부와 상관없이 파이어베이스의 전체 실시간 팀 데이터를 먼저 수신합니다.
+        database.ref('game/teams').on('value', (snapshot) => {
+            teamsData = snapshot.val() || {};
+            
+            // 로컬 기기에 기존 설정 기록이 남아있는지 확인
+            const savedGroup = localStorage.getItem('lockedGroup');
+            
+            if (savedGroup) {
+                // 만약 교사가 게임을 초기화해서 파이어베이스 서버 상에 내 모둠의 낙찰물품이나 기록이 완전히 비어있다면?
+                const serverGroupData = teamsData[savedGroup];
+                if (!serverGroupData || (serverGroupData.items === "" && serverGroupData.satisfaction === 0 && serverGroupData.money === 100)) {
+                    // 강제로 기기 잠금을 해제하고 초기 선택창으로 리셋합니다.
+                    releaseGroupLockUI();
+                } else {
+                    // 여전히 게임 데이터가 진행 중이라면 기존 모둠 화면을 유지합니다.
+                    myGroup = savedGroup;
+                    applyGroupLockUI();
+                }
+            } else {
+                releaseGroupLockUI();
+            }
+            updateDashboard();
+        });
+
+        // 모둠 잠금 UI 활성화
+        function applyGroupLockUI() {
+            document.getElementById('myGroupSelect').value = myGroup;
+            document.getElementById('myGroupSelect').disabled = true;
+            document.getElementById('lockGroupBtn').style.display = "none";
+            document.getElementById('lockNotice').textContent = "🔒 모둠 인증 및 접근 계정이 고정되었습니다.";
+            document.getElementById('groupAlertBlock').style.display = "none";
+            document.getElementById('mainContentArea').classList.remove('hidden');
+        }
+
+        // 모둠 잠금 강제 해제 및 초기화
+        function releaseGroupLockUI() {
+            myGroup = "";
+            localStorage.removeItem('lockedGroup');
+            document.getElementById('myGroupSelect').value = "";
+            document.getElementById('myGroupSelect').disabled = false;
+            document.getElementById('lockGroupBtn').style.display = "inline-block";
+            document.getElementById('lockNotice').textContent = "⚠️ 처음 모둠을 선택하고 확정하면 변경할 수 없습니다.";
+            document.getElementById('groupAlertBlock').style.display = "block";
+            document.getElementById('mainContentArea').classList.add('hidden');
+        }
+
+        // 선택 확정 버튼 이벤트
+        document.getElementById('lockGroupBtn').addEventListener('click', () => {
+            const sel = document.getElementById('myGroupSelect').value;
+            if(!sel) { alert("소속 모둠을 올바르게 고른 후 확정해 주세요."); return; }
+            if(confirm(`${sel}으로 확정하시겠습니까? 이후 다른 모둠으로 바꿀 수 없습니다.`)) {
+                myGroup = sel;
+                localStorage.setItem('lockedGroup', myGroup);
+                applyGroupLockUI();
+                updateDashboard();
+            }
+        });
+
+        database.ref('game/currentStep').on('value', (snapshot) => {
+            if(snapshot.exists()) {
+                currentStep = snapshot.val();
+                for(let i=1; i<=4; i++) {
+                    const scr = document.getElementById(`step${i}Screen`);
+                    if(scr) scr.style.display = "none";
+                }
+                if(currentStep === "3" || currentStep === "4") {
+                    document.getElementById('myTaxContainer').classList.remove('hidden');
+                } else {
+                    document.getElementById('myTaxContainer').classList.add('hidden');
+                }
+                const currentScr = document.getElementById(`step${currentStep}Screen`);
+                if(currentScr) currentScr.style.display = "block";
+                updateDashboard();
+            }
+        });
+
+        database.ref('game/proposals').on('value', (snapshot) => {
+            proposalsData = snapshot.val() || {};
+            updateDashboard();
+        });
+
+        function updateDashboard() {
+            if(!myGroup) return;
+            const me = teamsData[myGroup] || { money: 100, satisfaction: 0, penalty: 0, refund: 0, items: "" };
+            
+            document.getElementById('myMoney').textContent = `${me.money}만 원`;
+            document.getElementById('mySatisfaction').textContent = `+${me.satisfaction}점`;
+            document.getElementById('myTax').textContent = `${me.penalty - me.refund}만 원`;
+
+            const itemListView = document.getElementById('myItemsListView');
+            if(me.items) {
+                itemListView.innerHTML = `🛒 현재 보관함 물품 번호: <span class="text-emerald-400 font-bold">[ ${me.items} ]</span>`;
+            } else {
+                itemListView.textContent = "낙찰받은 물품이 아직 없습니다.";
+            }
+
+            const pItemSelect = document.getElementById('myPropItemSelect');
+            const prevVal = pItemSelect.value; 
+            pItemSelect.innerHTML = "";
+
+            if(me.items) {
+                const myItemIds = me.items.split(',').map(x => x.trim());
+                myItemIds.forEach(id => {
+                    let name = "";
+                    Object.keys(proposalsData).forEach(k => {
+                        if(proposalsData[k].itemId === id) name = proposalsData[k].itemName;
+                    });
+                    pItemSelect.innerHTML += `<option value="${id}">${id}번 [${name || '경매 물품'}]</option>`;
+                });
+                if(prevVal && me.items.includes(prevVal)) pItemSelect.value = prevVal;
+            } else {
+                pItemSelect.innerHTML = `<option value="">보유 자산 없음</option>`;
+            }
+
+            const tbody = document.getElementById('myStatusTableBody');
+            tbody.innerHTML = "";
+            let matchedCount = 0;
+
+            Object.keys(proposalsData).forEach(key => {
+                const prop = proposalsData[key];
+                if(prop.group === myGroup) {
+                    matchedCount++;
+                    let statusLabel = "";
+                    if(prop.status === "대기중") {
+                        statusLabel = `<span class="bg-slate-700 text-slate-400 px-2 py-1 rounded">미작성</span>`;
+                    } else if(prop.status === "검토요청") {
+                        statusLabel = `<span class="bg-indigo-600 text-indigo-100 px-2 py-1 rounded animate-pulse">👨‍🏫 교사 채점 중</span>`;
+                    } else if(prop.status === "승인완료") {
+                        statusLabel = `<span class="bg-emerald-600 text-white px-2 py-1 rounded font-bold">🟢 성공 (-${prop.refundAmount}만 원 감면!)</span>`;
+                    } else if(prop.status === "반려") {
+                        statusLabel = `<span class="bg-rose-600 text-white px-2 py-1 rounded font-bold">❌ 반려 (보완 필요)</span>`;
+                    }
+
+                    tbody.innerHTML += `
+                        <tr class="border-b border-slate-700">
+                            <td class="py-3 text-slate-200">${prop.itemName}</td>
+                            <td class="py-3 text-rose-400 font-black">${prop.originalPenalty}만 원</td>
+                            <td class="py-3 text-amber-400 font-bold">${prop.rType || '-'}</td>
+                            <td class="py-3 text-slate-400 max-w-xs truncate">${prop.idea || '-'}</td>
+                            <td class="py-3 text-center">${statusLabel}</td>
+                        </tr>`;
+                }
+            });
+
+            if(matchedCount === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-500">배정된 환경 고지서 내역이 존재하지 않습니다.</td></tr>`;
+            }
+        }
+
+        document.getElementById('submitProposalBtn').addEventListener('click', () => {
+            const itemId = document.getElementById('myPropItemSelect').value;
+            const rType = document.getElementById('myPropRType').value;
+            const idea = document.getElementById('myPropIdea').value.trim();
+
+            if(!itemId) { alert("작성할 물품이 선택되지 않았습니다."); return; }
+            if(!idea) { alert("실천 방안 내용을 서술형으로 꼼꼼히 작성해 주세요!"); return; }
+
+            const proposalKey = `${myGroup}_${itemId}`;
+            database.ref(`game/proposals/${proposalKey}`).update({
+                rType: rType,
+                idea: idea,
+                status: "검토요청"
+            }).then(() => {
+                alert("💡 실천 대안서가 제출되었습니다! 교사 스크린의 실시간 채점 결과를 기다리세요.");
+                document.getElementById('myPropIdea').value = "";
+            });
+        });
+    </script>
+</body>
+</html>
